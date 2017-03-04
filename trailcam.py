@@ -1,8 +1,10 @@
+import argparse
 import logging
 import os
 import signal
 import sys
 
+from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime
 from gpiozero import MotionSensor
 from picamera import Color, PiCamera
@@ -15,11 +17,18 @@ MOTION_SENSOR_PIN = 17
 LOG = logging.getLogger('Trailcam')
 
 
-def init_logging():
-  log_file = os.path.join('trailcam_log')
-  logging.basicConfig(
-      level=logging.DEBUG,
-      datefmt='%Y-%m-%d %H:%M:%S')
+def init_logging(log_dir=None):
+  root_logger = logging.getLogger('')
+  root_logger.setLevel(logging.DEBUG)
+  formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+  console_handler = logging.StreamHandler(sys.stdout)
+  console_handler.setFormatter(formatter)
+  root_logger.addHandler(console_handler)
+  if log_dir:
+    log_file = os.path.join(log_dir, 'trailcam.log')
+    file_handler = TimedRotatingFileHandler(log_file, when='M', backupCount=7)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
 
 
 def exit_handler(signum, frame):
@@ -28,8 +37,12 @@ def exit_handler(signum, frame):
 
 
 if __name__ == '__main__':
-  init_logging()
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--log-dir', '-l', dest='log_dir', default=os.path.dirname(os.path.realpath(__file__)))
+  args = parser.parse_args()
+  init_logging(log_dir=args.log_dir)
   signal.signal(signal.SIGHUP, exit_handler)
+  LOG.info('Starting up')
   motion_sensor = MotionSensor(MOTION_SENSOR_PIN)
   while True:
     motion_sensor.wait_for_motion()
